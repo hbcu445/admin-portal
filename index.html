@@ -468,6 +468,57 @@
                     <button class="btn" onclick="updateAdminPassword()" style="max-width: 200px;">Update Password</button>
                     <div id="password-message" style="margin-top: 10px;"></div>
                 </div>
+
+                <!-- Admin Users Management (Master Admin Only) -->
+                <div id="admin-users-section" style="background: #0f172a; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                    <h3 style="margin-bottom: 15px; color: #3b82f6;">👥 Admin Users Management</h3>
+                    <p style="color: #94a3b8; margin-bottom: 15px;">Manage admin access for the portal (Master Admin only)</p>
+                    
+                    <div style="margin-bottom: 20px;">
+                        <button class="btn" onclick="showAddAdminForm()" style="background: #10b981;">+ Add New Admin</button>
+                    </div>
+
+                    <!-- Add Admin Form (hidden by default) -->
+                    <div id="add-admin-form" class="hidden" style="background: #1e293b; padding: 15px; border-radius: 6px; margin-bottom: 20px;">
+                        <h4 style="color: #3b82f6; margin-bottom: 10px;">Add New Admin User</h4>
+                        <div class="form-group">
+                            <label>Email</label>
+                            <input type="email" id="new-admin-email" placeholder="admin@example.com">
+                        </div>
+                        <div class="form-group">
+                            <label>Password</label>
+                            <input type="password" id="new-admin-password" placeholder="Enter password">
+                        </div>
+                        <div class="form-group">
+                            <label>Role</label>
+                            <select id="new-admin-role" style="width: 100%; padding: 10px; background: #0f172a; border: 1px solid #334155; border-radius: 4px; color: white;">
+                                <option value="admin">Admin</option>
+                                <option value="master">Master Admin</option>
+                            </select>
+                        </div>
+                        <div style="display: flex; gap: 10px;">
+                            <button class="btn" onclick="addNewAdmin()" style="background: #10b981;">Add Admin</button>
+                            <button class="btn" onclick="hideAddAdminForm()" style="background: #64748b;">Cancel</button>
+                        </div>
+                        <div id="add-admin-message" style="margin-top: 10px;"></div>
+                    </div>
+
+                    <!-- Admin Users List -->
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Email</th>
+                                <th>Role</th>
+                                <th>Created</th>
+                                <th>Last Login</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="admin-users-list">
+                            <tr><td colspan="5">Loading...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>
@@ -483,6 +534,7 @@
         let isLoggedIn = localStorage.getItem('admin_logged_in') === 'true';
 
         if (isLoggedIn) {
+            currentAdminRole = localStorage.getItem('admin_role') || 'admin';
             showDashboard();
             loadDashboardData();
         }
@@ -497,16 +549,47 @@
             errorDiv.textContent = '';
             successDiv.textContent = '';
 
-            // Simple credential check
-            if (email === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
-                localStorage.setItem('admin_logged_in', 'true');
-                successDiv.textContent = 'Login successful! Redirecting...';
-                setTimeout(() => {
-                    showDashboard();
-                    loadDashboardData();
-                }, 500);
-            } else {
-                errorDiv.textContent = 'Invalid email or password';
+            try {
+                // Check credentials against Supabase admin_users table
+                const response = await fetch(`${SUPABASE_URL}/rest/v1/admin_users?email=eq.${encodeURIComponent(email)}&password=eq.${encodeURIComponent(password)}`, {
+                    headers: {
+                        'apikey': SUPABASE_KEY,
+                        'Authorization': `Bearer ${SUPABASE_KEY}`
+                    }
+                });
+                
+                const users = await response.json();
+                
+                if (users && users.length > 0) {
+                    const user = users[0];
+                    currentAdminRole = user.role; // Set the user's role
+                    localStorage.setItem('admin_logged_in', 'true');
+                    localStorage.setItem('admin_email', email);
+                    localStorage.setItem('admin_role', user.role);
+                    
+                    // Update last_login timestamp
+                    await fetch(`${SUPABASE_URL}/rest/v1/admin_users?id=eq.${user.id}`, {
+                        method: 'PATCH',
+                        headers: {
+                            'apikey': SUPABASE_KEY,
+                            'Authorization': `Bearer ${SUPABASE_KEY}`,
+                            'Content-Type': 'application/json',
+                            'Prefer': 'return=minimal'
+                        },
+                        body: JSON.stringify({ last_login: new Date().toISOString() })
+                    });
+                    
+                    successDiv.textContent = 'Login successful! Redirecting...';
+                    setTimeout(() => {
+                        showDashboard();
+                        loadDashboardData();
+                    }, 500);
+                } else {
+                    errorDiv.textContent = 'Invalid email or password';
+                }
+            } catch (err) {
+                console.error('Login error:', err);
+                errorDiv.textContent = 'Login error. Please try again.';
             }
         }
 
@@ -535,6 +618,7 @@
             if (tab === 'sessions') loadSessions();
             if (tab === 'results') loadResults();
             if (tab === 'questions') loadQuestions();
+            if (tab === 'settings') loadAdminUsers();
         }
 
         async function loadDashboardData() {
@@ -929,6 +1013,143 @@
             const shuffleEnabled = localStorage.getItem('shuffle_questions') === 'true';
             localStorage.setItem('shuffle_questions', !shuffleEnabled);
             alert('Question shuffling: ' + (!shuffleEnabled ? 'ENABLED' : 'DISABLED'));
+        }
+
+        // Admin Users Management Functions
+        let currentAdminRole = 'admin'; // Will be set on login
+
+        async function loadAdminUsers() {
+            const adminSection = document.getElementById('admin-users-section');
+            
+            // Only show admin users section for master admins
+            if (currentAdminRole !== 'master') {
+                if (adminSection) {
+                    adminSection.style.display = 'none';
+                }
+                return;
+            } else {
+                if (adminSection) {
+                    adminSection.style.display = 'block';
+                }
+            }
+            
+            try {
+                const response = await fetch(`${SUPABASE_URL}/rest/v1/admin_users?order=created_at.desc`, {
+                    headers: {
+                        'apikey': SUPABASE_KEY,
+                        'Authorization': `Bearer ${SUPABASE_KEY}`
+                    }
+                });
+                const users = await response.json();
+                const tbody = document.getElementById('admin-users-list');
+                
+                if (users.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5">No admin users found</td></tr>';
+                } else {
+                    tbody.innerHTML = users.map(user => `
+                        <tr>
+                            <td>${user.email}</td>
+                            <td><span style="background: ${user.role === 'master' ? '#ef4444' : '#3b82f6'}; padding: 3px 10px; border-radius: 4px; font-size: 12px; font-weight: bold;">${user.role.toUpperCase()}</span></td>
+                            <td>${new Date(user.created_at).toLocaleDateString()}</td>
+                            <td>${user.last_login ? new Date(user.last_login).toLocaleDateString() : 'Never'}</td>
+                            <td>
+                                ${user.email !== localStorage.getItem('admin_email') && currentAdminRole === 'master' ? `
+                                    <button class="btn" onclick="deleteAdminUser(${user.id}, '${user.email}')" style="background: #ef4444; padding: 5px 10px; font-size: 12px;">Delete</button>
+                                ` : '<span style="color: #64748b;">-</span>'}
+                            </td>
+                        </tr>
+                    `).join('');
+                }
+            } catch (err) {
+                console.error('Error loading admin users:', err);
+                document.getElementById('admin-users-list').innerHTML = '<tr><td colspan="5">Error loading admin users</td></tr>';
+            }
+        }
+
+        function showAddAdminForm() {
+            document.getElementById('add-admin-form').classList.remove('hidden');
+        }
+
+        function hideAddAdminForm() {
+            document.getElementById('add-admin-form').classList.add('hidden');
+            document.getElementById('new-admin-email').value = '';
+            document.getElementById('new-admin-password').value = '';
+            document.getElementById('add-admin-message').innerHTML = '';
+        }
+
+        async function addNewAdmin() {
+            const email = document.getElementById('new-admin-email').value.trim();
+            const password = document.getElementById('new-admin-password').value;
+            const role = document.getElementById('new-admin-role').value;
+            const messageDiv = document.getElementById('add-admin-message');
+            
+            if (!email || !password) {
+                messageDiv.innerHTML = '<span style="color: #ef4444;">Email and password are required</span>';
+                return;
+            }
+            
+            if (password.length < 8) {
+                messageDiv.innerHTML = '<span style="color: #ef4444;">Password must be at least 8 characters</span>';
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${SUPABASE_URL}/rest/v1/admin_users`, {
+                    method: 'POST',
+                    headers: {
+                        'apikey': SUPABASE_KEY,
+                        'Authorization': `Bearer ${SUPABASE_KEY}`,
+                        'Content-Type': 'application/json',
+                        'Prefer': 'return=minimal'
+                    },
+                    body: JSON.stringify({
+                        email: email,
+                        password: password,
+                        role: role,
+                        created_by: localStorage.getItem('admin_email') || 'system'
+                    })
+                });
+                
+                if (response.ok) {
+                    messageDiv.innerHTML = '<span style="color: #10b981;">Admin user added successfully!</span>';
+                    setTimeout(() => {
+                        hideAddAdminForm();
+                        loadAdminUsers();
+                    }, 1500);
+                } else {
+                    const error = await response.text();
+                    messageDiv.innerHTML = '<span style="color: #ef4444;">Error: ' + error + '</span>';
+                }
+            } catch (err) {
+                console.error('Error adding admin:', err);
+                messageDiv.innerHTML = '<span style="color: #ef4444;">Error adding admin user</span>';
+            }
+        }
+
+        async function deleteAdminUser(id, email) {
+            if (!confirm(`Are you sure you want to remove admin access for ${email}?`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${SUPABASE_URL}/rest/v1/admin_users?id=eq.${id}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'apikey': SUPABASE_KEY,
+                        'Authorization': `Bearer ${SUPABASE_KEY}`
+                    }
+                });
+                
+                if (response.ok) {
+                    alert('Admin user removed successfully');
+                    loadAdminUsers();
+                } else {
+                    alert('Error removing admin user');
+                }
+            } catch (err) {
+                console.error('Error deleting admin:', err);
+                alert('Error removing admin user');
+            }
         }
     </script>
 </body>
