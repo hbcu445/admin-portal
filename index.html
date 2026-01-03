@@ -256,6 +256,7 @@
 
     <div id="dashboard-page" class="dashboard hidden">
         <div class="sidebar">
+            <img src="GSBlue180x55.jpg" alt="Generator Source" style="width: 180px; height: 55px; margin: 0 auto 20px auto; display: block;">
             <h3 style="margin-bottom: 20px; color: #3b82f6;">Admin Dashboard</h3>
             <nav>
                 <button class="active" onclick="switchTab('dashboard')">Dashboard</button>
@@ -263,6 +264,7 @@
                 <button onclick="switchTab('sessions')">Test Sessions</button>
                 <button onclick="switchTab('results')">Results</button>
                 <button onclick="switchTab('questions')">Questions</button>
+                <button onclick="switchTab('scoring')">Scoring</button>
                 <button onclick="switchTab('settings')">Settings</button>
             </nav>
             <button class="btn logout-btn" onclick="logout()">Logout</button>
@@ -355,23 +357,77 @@
             <!-- Questions Tab -->
             <div id="questions-tab" class="hidden">
                 <h2>Test Questions Management</h2>
-                <div style="margin-bottom: 20px;">
-                    <button class="btn" onclick="loadQuestions()" style="margin-right: 10px;">Refresh Questions</button>
+                <div style="margin-bottom: 20px; display: flex; gap: 10px;">
+                    <button class="btn" onclick="loadQuestions()">Refresh Questions</button>
                     <button class="btn" onclick="toggleShuffleQuestions()" style="background: #f59e0b;">Toggle Shuffle</button>
+                    <button class="btn" onclick="showAddQuestionModal()" style="background: #10b981;">+ Add New Question</button>
+                    <button class="btn" onclick="generateQuestionWithAI()" style="background: #8b5cf6;">🤖 AI Generate</button>
                 </div>
                 <table class="table">
                     <thead>
                         <tr>
-                            <th>ID</th>
+                            <th style="width: 80px;">Q#</th>
+                            <th style="width: 150px;">Category</th>
                             <th>Question</th>
-                            <th>Concerning</th>
-                            <th>Actions</th>
+                            <th style="width: 80px;">Answer</th>
+                            <th style="width: 120px;">Concerning</th>
+                            <th style="width: 150px;">Actions</th>
                         </tr>
                     </thead>
                     <tbody id="questions-list">
-                        <tr><td colspan="4">Loading...</td></tr>
+                        <tr><td colspan="6">Loading...</td></tr>
                     </tbody>
                 </table>
+            </div>
+
+            <!-- Question Editor Modal -->
+            <div id="question-modal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); z-index: 1000; overflow-y: auto;">
+                <div style="max-width: 800px; margin: 50px auto; background: #1e293b; padding: 30px; border-radius: 8px;">
+                    <h2 id="modal-title" style="margin-bottom: 20px; color: #3b82f6;">Edit Question</h2>
+                    <input type="hidden" id="edit-question-number">
+                    
+                    <div class="form-group">
+                        <label>Category</label>
+                        <input type="text" id="edit-category" placeholder="e.g., BASIC ELECTRICITY">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Question Text</label>
+                        <textarea id="edit-question-text" rows="3" style="width: 100%; padding: 10px; background: #0f172a; border: 1px solid #334155; border-radius: 4px; color: #e2e8f0; font-family: inherit; resize: vertical;"></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Answer A</label>
+                        <input type="text" id="edit-answer-a" placeholder="Answer A text">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Answer B</label>
+                        <input type="text" id="edit-answer-b" placeholder="Answer B text">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Answer C</label>
+                        <input type="text" id="edit-answer-c" placeholder="Answer C text">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Answer D</label>
+                        <input type="text" id="edit-answer-d" placeholder="Answer D text">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Correct Answer (LOCKED)</label>
+                        <input type="text" id="edit-correct-answer" readonly style="background: #475569; cursor: not-allowed; font-weight: bold; color: #fbbf24;">
+                        <small style="color: #94a3b8; display: block; margin-top: 5px;">⚠️ The correct answer letter is locked to this question number and cannot be changed. Arrange your answers so the correct one is in this position.</small>
+                    </div>
+                    
+                    <div style="display: flex; gap: 10px; margin-top: 20px;">
+                        <button class="btn" onclick="saveQuestion()" style="background: #10b981;">Save Changes</button>
+                        <button class="btn" onclick="closeQuestionModal()" style="background: #64748b;">Cancel</button>
+                    </div>
+                    <div id="modal-message" style="margin-top: 15px;"></div>
+                </div>
             </div>
 
             <!-- Settings Tab -->
@@ -652,28 +708,31 @@
         // Question Management Functions
         async function loadQuestions() {
             try {
-                const response = await fetch(`${SUPABASE_URL}/rest/v1/questions`, {
+                const response = await fetch(`${SUPABASE_URL}/rest/v1/questions?order=question_number.asc`, {
                     headers: {
-                        'apikey': SUPABASE_KEY
+                        'apikey': SUPABASE_KEY,
+                        'Authorization': `Bearer ${SUPABASE_KEY}`
                     }
                 });
                 const data = await response.json();
                 const tbody = document.getElementById('questions-list');
                 
                 if (data.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="4">No questions found</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="6">No questions found</td></tr>';
                 } else {
                     tbody.innerHTML = data.map(q => `
-                        <tr>
-                            <td>${q.id || 'N/A'}</td>
-                            <td>${(q.question || 'N/A').substring(0, 50)}...</td>
-                            <td>
-                                <button class="btn" onclick="toggleConcerning(${q.id}, ${q.is_concerning})" style="background: ${q.is_concerning ? '#ef4444' : '#6b7280'}; padding: 5px 10px; font-size: 12px;">
-                                    ${q.is_concerning ? 'Yes' : 'No'}
+                        <tr style="${q.is_concerning ? 'background: rgba(239, 68, 68, 0.1);' : ''}">
+                            <td><strong>${q.question_number}</strong></td>
+                            <td style="color: #94a3b8; font-size: 13px;">${q.category || 'GENERAL'}</td>
+                            <td style="font-size: 14px;">${(q.question_text || 'N/A').substring(0, 80)}${q.question_text.length > 80 ? '...' : ''}</td>
+                            <td style="text-align: center;"><span style="background: #fbbf24; color: #000; padding: 3px 8px; border-radius: 4px; font-weight: bold;">${q.correct_answer_letter}</span></td>
+                            <td style="text-align: center;">
+                                <button class="btn" onclick="toggleConcerning(${q.question_number}, ${q.is_concerning})" style="background: ${q.is_concerning ? '#ef4444' : '#6b7280'}; padding: 5px 10px; font-size: 12px;">
+                                    ${q.is_concerning ? '🚩 Yes' : 'No'}
                                 </button>
                             </td>
                             <td>
-                                <button class="btn" onclick="editQuestion(${q.id})" style="background: #3b82f6; padding: 5px 10px; font-size: 12px;">Edit</button>
+                                <button class="btn" onclick="editQuestion(${q.question_number})" style="background: #3b82f6; padding: 5px 10px; font-size: 12px; margin-right: 5px;">✏️ Edit</button>
                             </td>
                         </tr>
                     `).join('');
@@ -684,19 +743,23 @@
             }
         }
 
-        async function toggleConcerning(questionId, currentValue) {
+        async function toggleConcerning(questionNumber, currentValue) {
             try {
                 const newValue = !currentValue;
-                const response = await fetch(`${SUPABASE_URL}/rest/v1/questions?id=eq.${questionId}`, {
+                const response = await fetch(`${SUPABASE_URL}/rest/v1/questions?question_number=eq.${questionNumber}`, {
                     method: 'PATCH',
                     headers: {
                         'apikey': SUPABASE_KEY,
-                        'Content-Type': 'application/json'
+                        'Authorization': `Bearer ${SUPABASE_KEY}`,
+                        'Content-Type': 'application/json',
+                        'Prefer': 'return=minimal'
                     },
                     body: JSON.stringify({ is_concerning: newValue })
                 });
                 if (response.ok) {
                     loadQuestions();
+                } else {
+                    alert('Error: ' + await response.text());
                 }
             } catch (err) {
                 console.error('Error updating question:', err);
@@ -704,8 +767,161 @@
             }
         }
 
-        function editQuestion(questionId) {
-            alert('Edit functionality coming soon for question ' + questionId);
+        async function editQuestion(questionNumber) {
+            try {
+                const response = await fetch(`${SUPABASE_URL}/rest/v1/questions?question_number=eq.${questionNumber}`, {
+                    headers: {
+                        'apikey': SUPABASE_KEY,
+                        'Authorization': `Bearer ${SUPABASE_KEY}`
+                    }
+                });
+                const data = await response.json();
+                if (data.length > 0) {
+                    const q = data[0];
+                    document.getElementById('modal-title').textContent = `Edit Question #${q.question_number}`;
+                    document.getElementById('edit-question-number').value = q.question_number;
+                    document.getElementById('edit-category').value = q.category || '';
+                    document.getElementById('edit-question-text').value = q.question_text || '';
+                    document.getElementById('edit-answer-a').value = q.answer_a || '';
+                    document.getElementById('edit-answer-b').value = q.answer_b || '';
+                    document.getElementById('edit-answer-c').value = q.answer_c || '';
+                    document.getElementById('edit-answer-d').value = q.answer_d || '';
+                    document.getElementById('edit-correct-answer').value = q.correct_answer_letter;
+                    document.getElementById('question-modal').style.display = 'block';
+                }
+            } catch (err) {
+                console.error('Error loading question:', err);
+                alert('Error loading question');
+            }
+        }
+
+        function showAddQuestionModal() {
+            // Find next available question number
+            fetch(`${SUPABASE_URL}/rest/v1/questions?select=question_number&order=question_number.desc&limit=1`, {
+                headers: { 'apikey': SUPABASE_KEY }
+            })
+            .then(res => res.json())
+            .then(data => {
+                const nextNumber = data.length > 0 ? data[0].question_number + 1 : 1;
+                const answers = ['A', 'B', 'C', 'D'];
+                const randomAnswer = answers[Math.floor(Math.random() * answers.length)];
+                
+                document.getElementById('modal-title').textContent = `Add New Question #${nextNumber}`;
+                document.getElementById('edit-question-number').value = nextNumber;
+                document.getElementById('edit-category').value = 'GENERAL';
+                document.getElementById('edit-question-text').value = '';
+                document.getElementById('edit-answer-a').value = '';
+                document.getElementById('edit-answer-b').value = '';
+                document.getElementById('edit-answer-c').value = '';
+                document.getElementById('edit-answer-d').value = '';
+                document.getElementById('edit-correct-answer').value = randomAnswer;
+                document.getElementById('question-modal').style.display = 'block';
+            });
+        }
+
+        function closeQuestionModal() {
+            document.getElementById('question-modal').style.display = 'none';
+            document.getElementById('modal-message').innerHTML = '';
+        }
+
+        async function saveQuestion() {
+            const questionNumber = parseInt(document.getElementById('edit-question-number').value);
+            const category = document.getElementById('edit-category').value.trim();
+            const questionText = document.getElementById('edit-question-text').value.trim();
+            const answerA = document.getElementById('edit-answer-a').value.trim();
+            const answerB = document.getElementById('edit-answer-b').value.trim();
+            const answerC = document.getElementById('edit-answer-c').value.trim();
+            const answerD = document.getElementById('edit-answer-d').value.trim();
+            const correctAnswer = document.getElementById('edit-correct-answer').value;
+            
+            if (!questionText || !answerA || !answerB || !answerC || !answerD) {
+                document.getElementById('modal-message').innerHTML = '<span style="color: #ef4444;">All fields are required</span>';
+                return;
+            }
+            
+            try {
+                const questionData = {
+                    question_number: questionNumber,
+                    category: category || 'GENERAL',
+                    question_text: questionText,
+                    answer_a: answerA,
+                    answer_b: answerB,
+                    answer_c: answerC,
+                    answer_d: answerD,
+                    correct_answer_letter: correctAnswer
+                };
+                
+                // Check if question exists
+                const checkResponse = await fetch(`${SUPABASE_URL}/rest/v1/questions?question_number=eq.${questionNumber}`, {
+                    headers: {
+                        'apikey': SUPABASE_KEY,
+                        'Authorization': `Bearer ${SUPABASE_KEY}`
+                    }
+                });
+                const existing = await checkResponse.json();
+                
+                let response;
+                if (existing.length > 0) {
+                    // Update existing
+                    response = await fetch(`${SUPABASE_URL}/rest/v1/questions?question_number=eq.${questionNumber}`, {
+                        method: 'PATCH',
+                        headers: {
+                            'apikey': SUPABASE_KEY,
+                            'Authorization': `Bearer ${SUPABASE_KEY}`,
+                            'Content-Type': 'application/json',
+                            'Prefer': 'return=minimal'
+                        },
+                        body: JSON.stringify(questionData)
+                    });
+                } else {
+                    // Insert new
+                    response = await fetch(`${SUPABASE_URL}/rest/v1/questions`, {
+                        method: 'POST',
+                        headers: {
+                            'apikey': SUPABASE_KEY,
+                            'Authorization': `Bearer ${SUPABASE_KEY}`,
+                            'Content-Type': 'application/json',
+                            'Prefer': 'return=minimal'
+                        },
+                        body: JSON.stringify(questionData)
+                    });
+                }
+                
+                if (response.ok) {
+                    document.getElementById('modal-message').innerHTML = '<span style="color: #10b981;">✅ Question saved successfully!</span>';
+                    setTimeout(() => {
+                        closeQuestionModal();
+                        loadQuestions();
+                    }, 1500);
+                } else {
+                    const errorText = await response.text();
+                    document.getElementById('modal-message').innerHTML = `<span style="color: #ef4444;">Error: ${errorText}</span>`;
+                }
+            } catch (err) {
+                console.error('Error saving question:', err);
+                document.getElementById('modal-message').innerHTML = '<span style="color: #ef4444;">Error saving question</span>';
+            }
+        }
+
+        async function generateQuestionWithAI() {
+            const btn = event.target;
+            btn.disabled = true;
+            btn.textContent = '🤖 Generating...';
+            
+            try {
+                // This would call OpenAI API - for now, show a demo
+                alert('AI Question Generation:\n\nThis feature will use OpenAI to generate new generator technician questions.\n\nImplementation requires OpenAI API key configuration.');
+                
+                // TODO: Implement actual OpenAI API call
+                // const response = await fetch('https://api.openai.com/v1/chat/completions', {...});
+                
+            } catch (err) {
+                console.error('Error generating question:', err);
+                alert('Error generating question with AI');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '🤖 AI Generate';
+            }
         }
 
         function toggleShuffleQuestions() {
