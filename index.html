@@ -262,6 +262,7 @@
                 <button onclick="switchTab('applicants')">Applicants</button>
                 <button onclick="switchTab('sessions')">Test Sessions</button>
                 <button onclick="switchTab('results')">Results</button>
+                <button onclick="switchTab('questions')">Questions</button>
                 <button onclick="switchTab('settings')">Settings</button>
             </nav>
             <button class="btn logout-btn" onclick="logout()">Logout</button>
@@ -289,6 +290,11 @@
                     <strong>✅ Admin Portal is Active</strong><br>
                     You are logged in and can manage applicants, test sessions, and view results.
                 </div>
+                <div style="margin-top: 20px;">
+                    <a href="https://teal-semolina-59c9d9.netlify.app" target="_blank" class="btn" style="display: inline-block; background: #10b981; text-decoration: none; padding: 12px 24px; border-radius: 6px; color: white; font-weight: bold; cursor: pointer;">
+                        🔗 View Technician Test Site
+                    </a>
+                </div>
             </div>
 
             <!-- Applicants Tab -->
@@ -299,12 +305,13 @@
                         <tr>
                             <th>Name</th>
                             <th>Email</th>
+                            <th>Phone</th>
                             <th>Branch</th>
                             <th>Status</th>
                         </tr>
                     </thead>
                     <tbody id="applicants-list">
-                        <tr><td colspan="4">Loading...</td></tr>
+                        <tr><td colspan="5">Loading...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -340,6 +347,28 @@
                         </tr>
                     </thead>
                     <tbody id="results-list">
+                        <tr><td colspan="4">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Questions Tab -->
+            <div id="questions-tab" class="hidden">
+                <h2>Test Questions Management</h2>
+                <div style="margin-bottom: 20px;">
+                    <button class="btn" onclick="loadQuestions()" style="margin-right: 10px;">Refresh Questions</button>
+                    <button class="btn" onclick="toggleShuffleQuestions()" style="background: #f59e0b;">Toggle Shuffle</button>
+                </div>
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Question</th>
+                            <th>Concerning</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="questions-list">
                         <tr><td colspan="4">Loading...</td></tr>
                     </tbody>
                 </table>
@@ -498,12 +527,13 @@
                 const tbody = document.getElementById('applicants-list');
                 
                 if (data.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="4">No applicants found</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="5">No applicants found</td></tr>';
                 } else {
                     tbody.innerHTML = data.map(app => `
                         <tr>
                             <td>${app.name || 'N/A'}</td>
                             <td>${app.email || 'N/A'}</td>
+                            <td>${app.phone || 'N/A'}</td>
                             <td>${app.branch || 'N/A'}</td>
                             <td><span style="color: #10b981;">Active</span></td>
                         </tr>
@@ -511,7 +541,7 @@
                 }
             } catch (err) {
                 console.error('Error loading applicants:', err);
-                document.getElementById('applicants-list').innerHTML = '<tr><td colspan="4">Error loading data</td></tr>';
+                document.getElementById('applicants-list').innerHTML = '<tr><td colspan="5">Error loading data</td></tr>';
             }
         }
 
@@ -617,6 +647,71 @@
 
         if (isLoggedIn) {
             initializeSettings();
+        }
+
+        // Question Management Functions
+        async function loadQuestions() {
+            try {
+                const response = await fetch(`${SUPABASE_URL}/rest/v1/questions`, {
+                    headers: {
+                        'apikey': SUPABASE_KEY
+                    }
+                });
+                const data = await response.json();
+                const tbody = document.getElementById('questions-list');
+                
+                if (data.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4">No questions found</td></tr>';
+                } else {
+                    tbody.innerHTML = data.map(q => `
+                        <tr>
+                            <td>${q.id || 'N/A'}</td>
+                            <td>${(q.question || 'N/A').substring(0, 50)}...</td>
+                            <td>
+                                <button class="btn" onclick="toggleConcerning(${q.id}, ${q.is_concerning})" style="background: ${q.is_concerning ? '#ef4444' : '#6b7280'}; padding: 5px 10px; font-size: 12px;">
+                                    ${q.is_concerning ? 'Yes' : 'No'}
+                                </button>
+                            </td>
+                            <td>
+                                <button class="btn" onclick="editQuestion(${q.id})" style="background: #3b82f6; padding: 5px 10px; font-size: 12px;">Edit</button>
+                            </td>
+                        </tr>
+                    `).join('');
+                }
+            } catch (err) {
+                console.error('Error loading questions:', err);
+                document.getElementById('questions-list').innerHTML = '<tr><td colspan="4">Error loading questions</td></tr>';
+            }
+        }
+
+        async function toggleConcerning(questionId, currentValue) {
+            try {
+                const newValue = !currentValue;
+                const response = await fetch(`${SUPABASE_URL}/rest/v1/questions?id=eq.${questionId}`, {
+                    method: 'PATCH',
+                    headers: {
+                        'apikey': SUPABASE_KEY,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ is_concerning: newValue })
+                });
+                if (response.ok) {
+                    loadQuestions();
+                }
+            } catch (err) {
+                console.error('Error updating question:', err);
+                alert('Error updating question');
+            }
+        }
+
+        function editQuestion(questionId) {
+            alert('Edit functionality coming soon for question ' + questionId);
+        }
+
+        function toggleShuffleQuestions() {
+            const shuffleEnabled = localStorage.getItem('shuffle_questions') === 'true';
+            localStorage.setItem('shuffle_questions', !shuffleEnabled);
+            alert('Question shuffling: ' + (!shuffleEnabled ? 'ENABLED' : 'DISABLED'));
         }
     </script>
 </body>
