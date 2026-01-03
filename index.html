@@ -309,11 +309,12 @@
                             <th>Email</th>
                             <th>Phone</th>
                             <th>Branch</th>
+                            <th>Test Date</th>
                             <th>Status</th>
                         </tr>
                     </thead>
                     <tbody id="applicants-list">
-                        <tr><td colspan="5">Loading...</td></tr>
+                        <tr><td colspan="6">Loading...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -659,30 +660,55 @@
 
         async function loadApplicants() {
             try {
-                const response = await fetch(`${SUPABASE_URL}/rest/v1/applicants`, {
+                // Fetch applicants
+                const applicantsResponse = await fetch(`${SUPABASE_URL}/rest/v1/applicants`, {
                     headers: {
                         'apikey': SUPABASE_KEY
                     }
                 });
-                const data = await response.json();
+                const applicants = await applicantsResponse.json();
+                
+                // Fetch results to get test dates
+                const resultsResponse = await fetch(`${SUPABASE_URL}/rest/v1/results?select=applicant_id,test_date`, {
+                    headers: {
+                        'apikey': SUPABASE_KEY
+                    }
+                });
+                const results = await resultsResponse.json();
+                
+                // Create a map of applicant_id to test_date
+                const testDateMap = {};
+                results.forEach(result => {
+                    if (result.applicant_id && result.test_date) {
+                        testDateMap[result.applicant_id] = result.test_date;
+                    }
+                });
+                
                 const tbody = document.getElementById('applicants-list');
                 
-                if (data.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="5">No applicants found</td></tr>';
+                if (applicants.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="6">No applicants found</td></tr>';
                 } else {
-                    tbody.innerHTML = data.map(app => `
-                        <tr>
-                            <td>${app.name || 'N/A'}</td>
-                            <td>${app.email || 'N/A'}</td>
-                            <td>${app.phone || 'N/A'}</td>
-                            <td>${app.branch || 'N/A'}</td>
-                            <td><span style="color: #10b981;">Active</span></td>
-                        </tr>
-                    `).join('');
+                    tbody.innerHTML = applicants.map(app => {
+                        const testDate = testDateMap[app.id];
+                        const formattedDate = testDate ? new Date(testDate).toLocaleDateString() : 'Not taken';
+                        const status = testDate ? '<span style="color: #10b981;">Completed</span>' : '<span style="color: #f59e0b;">Pending</span>';
+                        
+                        return `
+                            <tr>
+                                <td>${app.name || 'N/A'}</td>
+                                <td>${app.email || 'N/A'}</td>
+                                <td>${app.phone || 'N/A'}</td>
+                                <td>${app.branch || 'N/A'}</td>
+                                <td>${formattedDate}</td>
+                                <td>${status}</td>
+                            </tr>
+                        `;
+                    }).join('');
                 }
             } catch (err) {
                 console.error('Error loading applicants:', err);
-                document.getElementById('applicants-list').innerHTML = '<tr><td colspan="5">Error loading data</td></tr>';
+                document.getElementById('applicants-list').innerHTML = '<tr><td colspan="6">Error loading data</td></tr>';
             }
         }
 
