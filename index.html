@@ -543,6 +543,9 @@
         const ADMIN_EMAIL = '0719oliver@gmail.com';
         const ADMIN_PASSWORD = 'Dell2020!';
         
+        // Global variable for current admin role
+        let currentAdminRole = 'admin';
+        
         let isLoggedIn = localStorage.getItem('admin_logged_in') === 'true';
 
         if (isLoggedIn) {
@@ -1053,7 +1056,7 @@
         }
 
         // Admin Users Management Functions
-        let currentAdminRole = 'admin'; // Will be set on login
+        // currentAdminRole is declared at the top of the script
 
         async function loadAdminUsers() {
             const adminSection = document.getElementById('admin-users-section');
