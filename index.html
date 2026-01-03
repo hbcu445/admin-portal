@@ -497,6 +497,16 @@
                                 <option value="master">Master Admin</option>
                             </select>
                         </div>
+                        <div class="form-group">
+                            <label>Branch Location <span style="color: #64748b; font-size: 12px;">(Required for Admin role)</span></label>
+                            <select id="new-admin-branch" style="width: 100%; padding: 10px; background: #0f172a; border: 1px solid #334155; border-radius: 4px; color: white;">
+                                <option value="">Select Branch...</option>
+                                <option value="Brighton, CO">Brighton, CO (Colorado Branch)</option>
+                                <option value="Jacksonville, FL">Jacksonville, FL (Florida Branch)</option>
+                                <option value="Austin, TX">Austin, TX (Texas Branch)</option>
+                                <option value="Pensacola, FL">Pensacola, FL (Florida Branch)</option>
+                            </select>
+                        </div>
                         <div style="display: flex; gap: 10px;">
                             <button class="btn" onclick="addNewAdmin()" style="background: #10b981;">Add Admin</button>
                             <button class="btn" onclick="hideAddAdminForm()" style="background: #64748b;">Cancel</button>
@@ -510,13 +520,14 @@
                             <tr>
                                 <th>Email</th>
                                 <th>Role</th>
+                                <th>Branch</th>
                                 <th>Created</th>
                                 <th>Last Login</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody id="admin-users-list">
-                            <tr><td colspan="5">Loading...</td></tr>
+                            <tr><td colspan="6">Loading...</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -1070,12 +1081,13 @@
                 const tbody = document.getElementById('admin-users-list');
                 
                 if (users.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="5">No admin users found</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="6">No admin users found</td></tr>';
                 } else {
                     tbody.innerHTML = users.map(user => `
                         <tr>
                             <td>${user.email}</td>
                             <td><span style="background: ${user.role === 'master' ? '#ef4444' : '#3b82f6'}; padding: 3px 10px; border-radius: 4px; font-size: 12px; font-weight: bold;">${user.role.toUpperCase()}</span></td>
+                            <td>${user.branch_location || '<span style="color: #64748b;">All Branches</span>'}</td>
                             <td>${new Date(user.created_at).toLocaleDateString()}</td>
                             <td>${user.last_login ? new Date(user.last_login).toLocaleDateString() : 'Never'}</td>
                             <td>
@@ -1088,7 +1100,7 @@
                 }
             } catch (err) {
                 console.error('Error loading admin users:', err);
-                document.getElementById('admin-users-list').innerHTML = '<tr><td colspan="5">Error loading admin users</td></tr>';
+                document.getElementById('admin-users-list').innerHTML = '<tr><td colspan="6">Error loading admin users</td></tr>';
             }
         }
 
@@ -1107,6 +1119,7 @@
             const email = document.getElementById('new-admin-email').value.trim();
             const password = document.getElementById('new-admin-password').value;
             const role = document.getElementById('new-admin-role').value;
+            const branch = document.getElementById('new-admin-branch').value;
             const messageDiv = document.getElementById('add-admin-message');
             
             if (!email || !password) {
@@ -1116,6 +1129,12 @@
             
             if (password.length < 8) {
                 messageDiv.innerHTML = '<span style="color: #ef4444;">Password must be at least 8 characters</span>';
+                return;
+            }
+            
+            // Validate branch location for admin role
+            if (role === 'admin' && !branch) {
+                messageDiv.innerHTML = '<span style="color: #ef4444;">Branch location is required for Admin role</span>';
                 return;
             }
             
@@ -1132,6 +1151,7 @@
                         email: email,
                         password: password,
                         role: role,
+                        branch_location: role === 'admin' ? branch : null,
                         created_by: localStorage.getItem('admin_email') || 'system'
                     })
                 });
