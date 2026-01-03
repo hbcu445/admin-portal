@@ -262,6 +262,7 @@
                 <button onclick="switchTab('applicants')">Applicants</button>
                 <button onclick="switchTab('sessions')">Test Sessions</button>
                 <button onclick="switchTab('results')">Results</button>
+                <button onclick="switchTab('settings')">Settings</button>
             </nav>
             <button class="btn logout-btn" onclick="logout()">Logout</button>
         </div>
@@ -342,6 +343,46 @@
                         <tr><td colspan="4">Loading...</td></tr>
                     </tbody>
                 </table>
+            </div>
+
+            <!-- Settings Tab -->
+            <div id="settings-tab" class="hidden">
+                <h2>Settings</h2>
+                <div class="info-box">
+                    <strong>Admin Credentials Management</strong>
+                </div>
+                
+                <div style="background: #0f172a; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                    <h3 style="margin-bottom: 15px; color: #3b82f6;">Change Admin Email</h3>
+                    <div class="form-group">
+                        <label>Current Email</label>
+                        <input type="email" id="current-email" readonly style="background: #1e293b;">
+                    </div>
+                    <div class="form-group">
+                        <label>New Email</label>
+                        <input type="email" id="new-email" placeholder="Enter new email">
+                    </div>
+                    <button class="btn" onclick="updateAdminEmail()" style="max-width: 200px;">Update Email</button>
+                    <div id="email-message" style="margin-top: 10px;"></div>
+                </div>
+
+                <div style="background: #0f172a; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                    <h3 style="margin-bottom: 15px; color: #3b82f6;">Change Admin Password</h3>
+                    <div class="form-group">
+                        <label>Current Password</label>
+                        <input type="password" id="current-password" placeholder="Enter current password">
+                    </div>
+                    <div class="form-group">
+                        <label>New Password</label>
+                        <input type="password" id="new-password" placeholder="Enter new password">
+                    </div>
+                    <div class="form-group">
+                        <label>Confirm New Password</label>
+                        <input type="password" id="confirm-password" placeholder="Confirm new password">
+                    </div>
+                    <button class="btn" onclick="updateAdminPassword()" style="max-width: 200px;">Update Password</button>
+                    <div id="password-message" style="margin-top: 10px;"></div>
+                </div>
             </div>
         </div>
     </div>
@@ -528,6 +569,54 @@
                 console.error('Error loading results:', err);
                 document.getElementById('results-list').innerHTML = '<tr><td colspan="4">Error loading data</td></tr>';
             }
+        }
+
+        function updateAdminEmail() {
+            const newEmail = document.getElementById('new-email').value.trim();
+            const messageDiv = document.getElementById('email-message');
+            
+            if (!newEmail) {
+                messageDiv.innerHTML = '<span style="color: #ef4444;">Please enter a new email</span>';
+                return;
+            }
+            
+            localStorage.setItem('admin_email', newEmail);
+            messageDiv.innerHTML = '<span style="color: #10b981;">Email updated successfully!</span>';
+            document.getElementById('new-email').value = '';
+        }
+
+        function updateAdminPassword() {
+            const currentPassword = document.getElementById('current-password').value;
+            const newPassword = document.getElementById('new-password').value;
+            const confirmPassword = document.getElementById('confirm-password').value;
+            const messageDiv = document.getElementById('password-message');
+            
+            if (currentPassword !== ADMIN_PASSWORD) {
+                messageDiv.innerHTML = '<span style="color: #ef4444;">Current password is incorrect</span>';
+                return;
+            }
+            
+            if (!newPassword || newPassword.length < 8) {
+                messageDiv.innerHTML = '<span style="color: #ef4444;">New password must be at least 8 characters</span>';
+                return;
+            }
+            
+            if (newPassword !== confirmPassword) {
+                messageDiv.innerHTML = '<span style="color: #ef4444;">Passwords do not match</span>';
+                return;
+            }
+            
+            localStorage.setItem('admin_password', newPassword);
+            messageDiv.innerHTML = '<span style="color: #10b981;">Password updated! Re-login required.</span>';
+            setTimeout(() => logout(), 3000);
+        }
+
+        function initializeSettings() {
+            document.getElementById('current-email').value = localStorage.getItem('admin_email') || ADMIN_EMAIL;
+        }
+
+        if (isLoggedIn) {
+            initializeSettings();
         }
     </script>
 </body>
